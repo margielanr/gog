@@ -1,0 +1,65 @@
+name: Meta Horizon Username Checker & Claimer
+
+on:
+  workflow_dispatch:          # ← you can click "Run workflow" in Actions tab anytime
+  schedule:
+    - cron: '*/20 * * * *'    # every 20 minutes fallback (if main job dies)
+
+permissions:
+  contents: write             # needed if you want to commit available.txt / taken.txt
+
+jobs:
+  monitor-and-claim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360      # maximum allowed — 6 hours
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ───────────────────────────────────────
+      #           Python + dependencies
+      # ───────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies (for playwright)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libglib2.0-0 libnss3 libnspr4 \
+            libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libdrm2 libxkbcommon0 libatspi2.0-0 \
+            libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libpango-1.0-0 libcairo2 libasound2 fonts-liberation \
+            libappindicator3-1 libxshmfence1 xvfb
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright requests
+          playwright install --with-deps chromium
+
+      # Optional: if you use playwright-stealth (currently optional in your code)
+      # pip install playwright-stealth
+
+      # ───────────────────────────────────────
+      #           The never-ending loop
+      # ───────────────────────────────────────
+      - name: Run claimer forever (until GitHub kills us)
+        run: |
+          while true; do
+            echo ""
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting new check cycle..."
+            python your_script.py || echo "Cycle failed — continuing anyway..."
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cycle finished. Sleeping 4 minutes..."
+            sleep 240
+          done
+
+      # This line is never reached — job will be killed by GitHub after 6 h
+      - name: This step is never executed
+        run: echo "You should never see this"
